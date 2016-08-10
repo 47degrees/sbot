@@ -1,0 +1,14 @@
+* Scala Bot
+
+  This is a work in progress bot framework for Scala. Initially the
+goal is to connect to Slack and support a few commands including
+evaluating Scala.
+
+Additionally the plan is to provide a fully functional API for supported
+chat back-ends. This includes
+ - Slack
+ - Gitter (Todo?)
+ - ...???
+
+* License
+The license can be found in [[COPYING]].
