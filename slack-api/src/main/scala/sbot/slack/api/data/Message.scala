@@ -9,7 +9,6 @@ package data
 import sbot.common.minidef._
 
 import io.circe.Decoder
-import io.circe.DecodingFailure
 import io.circe.generic.semiauto._
 
 sealed trait Message[+S <: Supports] {
@@ -24,6 +23,7 @@ object Message extends MessageDecoders {
   type RTM = Message[Supports.RTM]
   type EventsAPI = Message[Supports.EventsAPI]
   type Web = Message[Supports.Web]
+  type Any = Message[_]
 
   type All = Message[Supports.RTM with Supports.EventsAPI with Supports.Web]
 

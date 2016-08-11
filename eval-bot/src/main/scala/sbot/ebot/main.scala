@@ -3,43 +3,33 @@
  *  … yet another 🤖 framework, for Scala
  */
 
-package sbot.client.slack
+package sbot.ebot
 
 import sbot.common.minidef._
 
-import scala.None
-import scala.Option
 import scala.Some
 import scala.collection.immutable.List
-import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration._
 import scala.sys
 
 import sbot.common.config.semiauto._
 import sbot.common.http._
-import sbot.slack.api.data._
-import sbot.slack.api.web._
 import sbot.slack.api.rtm._
+import sbot.slack.api.web._
 
+import cats.~>
 import cats.syntax.option._
 
 import knobs._
 import java.io.File
 import java.nio.file.Paths
 
+import fs2.Task
 import fs2.Strategy
+import fs2.async
 import fs2.interop.cats._
 
-import scalaz.concurrent.{ Task ⇒ ZTask }
-
-/** Slack eval bot configuration */
-case class SlackClientConfig(
-  token: String,
-  entityTimeout: FiniteDuration
-)
-
-object SlackClientConfig {
-  val reader = deriveKnobsDecoder[SlackClientConfig]
-}
+import io.circe.Json
 
 /** Slack eval bot
   *
@@ -47,15 +37,35 @@ object SlackClientConfig {
   */
 object SlackClientMain {
 
+  case class Config(
+    requiredMessagePrefix: String,
+    http: Config.Http,
+    slack: Config.Slack,
+    evaluator: Config.Eval
+  )
+
+  object Config {
+    case class Http(entityTimeout: FiniteDuration)
+    private implicit val decodeHttp = deriveKnobsDecoder[Http]
+    case class Slack(token: String)
+    private implicit val decodeSlack = deriveKnobsDecoder[Slack]
+    case class Eval(token: String, uri: String)
+    private implicit val decodeEval = deriveKnobsDecoder[Eval]
+    val decodeConfig = deriveKnobsDecoder[Config]
+  }
+
   def main(args: scala.Array[String]) {
+    import scalaz.concurrent.{ Task ⇒ ZTask }
 
     val defaults = ClassPathResource("sbot-defaults.cfg")
     val envResource: Resource[Unit] = new Resource[Unit] {
       def resolve(r: Unit, child: Path): Unit = r
       def load(path: Worth[Unit]): ZTask[List[Directive]] =
         ZTask.now(
-          sys.env.get("SLACK_TOKEN").map(
-          token ⇒ Bind("token", CfgText(token))).toList)
+          sys.env.get("EVALUATOR_TOKEN").map(
+            token ⇒ Bind("evaluator.token", CfgText(token))).toList :::
+            sys.env.get("SLACK_TOKEN").map(
+              token ⇒ Bind("slack.token", CfgText(token))).toList)
     }
 
     val sources = List(
@@ -68,48 +78,62 @@ object SlackClientMain {
     knobs
       .loadImmutable(
         sources.flatten.map(source ⇒ Optional(source or defaults)))
-      .map(SlackClientConfig.reader)
+      .map(Config.decodeConfig)
       .run.fold(
         e ⇒ System.err.println(s"Error! $e"),
         botMain)
 
   }
 
-  def botMain(config: SlackClientConfig): Unit = {
+  def botMain(config: Config): Unit = {
+    import BotApi._
 
-    val http = AkkaHttpPie(
-      config.entityTimeout, Strategy.fromCachedDaemonPool())
-    val interpreter = new DefaultWebOpInterpreter(config.token, http)
-    val taskAPI = WebOps.task(interpreter)
-    val api = WebOps.free
+    implicit val strategy = Strategy.fromCachedDaemonPool()
 
-    def logic(context: WebOp.RTM.Start.Resp): Event.RTM ⇒ Option[api.IO[_]] = {
-      case Event.Message(msg) if msg.text.toLowerCase.contains("ping") ⇒
-        api.chat.postMessage(
-          msg.channel,
-          "pong!"
-        ).some
+    val http = AkkaHttpPie(config.http.entityTimeout, strategy)
+    val webInterpreter = new DefaultWebOpInterpreter(config.slack.token, http)
 
-      case Event.Message(msg) if msg.user != context.self.id ⇒
-        if (msg.text.contains(context.self.name))
-          api.chat.postMessage(
-            msg.channel,
-            "You rang?").some
-        else None
+    val evalBot: Task[Unit] = for {
 
-      case _ ⇒ None
-    }
+      // ask Slack for a web socket address
+      start ← WebOps.task(webInterpreter).rtm.start()
 
-    val robot = for {
-      start ← taskAPI.rtm.start()
-      _ ← RTM(http).begin(start)
-        .map(logic(start))
+      // populate our "memory" with information from the start response
+      memory = Memory.from(start)
+
+      // open the web socket to Slack
+      (input, output) = RTM(http).begin(start)
+
+      // create a queue, used for writing to the web socket
+      // when we evaluate our algebras
+      outputQueue ← async.unboundedQueue[Task, Json]
+      _ = outputQueue.dequeue.to(output)
+        .run.unsafeRunAsync(_ ⇒ ())
+
+      // create the interpreter for our algebras
+      evalInterpreter = EvalApi.EvalOp.defaultInterpreter(
+        http,
+        config.evaluator.uri,
+        config.evaluator.token)
+      botInterpreter = BotApi.BotOp.defaultInterpreter[Task]
+      rtmInterpreter = RtmOp.defaultInterpreter[Task](outputQueue)
+      interpreter1 = rtmInterpreter or evalInterpreter: Bot1 ~> Task
+      interpreter0 = botInterpreter or interpreter1: Bot0 ~> Task
+      interpreter = webInterpreter or interpreter0: Bot ~> Task
+
+      // instantiate our logic
+      logic = Logic(BotApi(), config.requiredMessagePrefix)
+
+      // process the input
+      _ ← input
+        .map(logic.think(memory, _))
         .collect { case Some(op) ⇒ op }
-        .evalMap(_.foldMap(interpreter).attempt)
+        .map(_.foldMap(interpreter).attempt.unsafeRunAsync(_ ⇒ ()))
         .run
+
     } yield ()
 
-    robot.unsafeRun()
+    evalBot.unsafeRun()
 
   }
 
