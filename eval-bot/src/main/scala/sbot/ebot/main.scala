@@ -29,6 +29,8 @@ import java.nio.file.Paths
 import fs2.Strategy
 import fs2.interop.cats._
 
+import scalaz.concurrent.{ Task ⇒ ZTask }
+
 /** Slack eval bot configuration */
 case class SlackClientConfig(
   token: String,
@@ -47,14 +49,25 @@ object SlackClientMain {
 
   def main(args: scala.Array[String]) {
 
-    def configSources = List(
+    val defaults = ClassPathResource("sbot-defaults.cfg")
+    val envResource: Resource[Unit] = new Resource[Unit] {
+      def resolve(r: Unit, child: Path): Unit = r
+      def load(path: Worth[Unit]): ZTask[List[Directive]] =
+        ZTask.now(
+          sys.env.get("SLACK_TOKEN").map(
+          token ⇒ Bind("token", CfgText(token))).toList)
+    }
+
+    val sources = List(
       SysPropsResource(Prefix("sbot")).some,
       FileResource(new File("sbot.cfg")).some,
       sys.props.get("user.home").map(home ⇒
-        FileResource(Paths.get(home, ".sbot", "sbot.cfg").toFile)))
+        FileResource(Paths.get(home, ".sbot", "sbot.cfg").toFile)),
+      Resource.box(())(envResource).some)
 
     knobs
-      .loadImmutable(configSources.flatten.map(Optional(_)))
+      .loadImmutable(
+        sources.flatten.map(source ⇒ Optional(source or defaults)))
       .map(SlackClientConfig.reader)
       .run.fold(
         e ⇒ System.err.println(s"Error! $e"),
