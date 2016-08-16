@@ -13,19 +13,6 @@ import scala.Option
 import io.circe.Decoder
 import io.circe.generic.semiauto._
 
-case class UserSetValue(
-  value: String,
-  creator: UserId,
-  lastSet: Long
-)
-
-object UserSetValue {
-  implicit val decodeUserSetValue: Decoder[UserSetValue] =
-    Decoder.forProduct3(
-      "value", "creator", "last_set"
-    )(UserSetValue.apply _)
-}
-
 case class Channel(
   id: ChannelId,
   name: String,
@@ -47,14 +34,4 @@ object Channel {
       "id", "name", "is_channel", "created", "creator",
       "is_archived", "is_general", "topic", "purpose"
     )(Channel.apply _)
-}
-
-case class User(
-  id: UserId,
-  name: String
-)
-
-object User {
-  implicit val decodeUser: Decoder[User] =
-    deriveDecoder[User]
 }

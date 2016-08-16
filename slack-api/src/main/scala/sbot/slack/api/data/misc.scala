@@ -14,6 +14,22 @@ import scala.collection.immutable.Nil
 import io.circe.Decoder
 import io.circe.generic.semiauto._
 
+/** This is used for configurable values, such as Channel topics. */
+case class UserSetValue(
+  value: String,
+  creator: UserId,
+  lastSet: Long
+)
+
+object UserSetValue {
+  implicit val decodeUserSetValue: Decoder[UserSetValue] =
+    Decoder.forProduct3(
+      "value", "creator", "last_set"
+    )(UserSetValue.apply _)
+}
+
+// TODO: maybe move to the web package?
+/** The generic response type for web API calls */
 sealed trait Response[+A]
 
 object Response {

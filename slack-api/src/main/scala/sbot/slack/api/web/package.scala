@@ -21,7 +21,6 @@ import cats.free.Inject
 import cats.syntax.option._
 
 import io.circe.Decoder
-import io.circe.Json
 import io.circe.generic.semiauto._
 
 import fs2.Task
@@ -144,7 +143,9 @@ package object web {
       object Start {
         case class Resp(
           url: String,
-          self: data.User // TODO??
+          self: data.User,
+          users: List[data.User],
+          channels: List[data.Channel]
         )
         private implicit val decodeResp: Decoder[Resp] =
           deriveDecoder[Resp]
@@ -154,15 +155,18 @@ package object web {
 
   }
 
+  type TaskWebOps = WebOps[λ[(α[_], β) ⇒ α[β]], Task]
+  type FutureWebOps = WebOps[λ[(α[_], β) ⇒ α[β]], Future]
+  type RawWebOps = WebOps[λ[(α[_], β) ⇒ α[β]], WebOp]
+
   object WebOps {
 
     /** The WebOps API operating in `fs2.Task` */
-    def task(interpreter: WebOp ~> Task): WebOps[λ[(α[_], β) ⇒ α[β]], Task] =
-      new WebOps[λ[(α[_], β) ⇒ α[β]], Task](interpreter)
+    def task(interpreter: WebOp ~> Task): TaskWebOps = new TaskWebOps(interpreter)
 
     /** The WebOps API operating in Scala's `Future` */
-    def future(interpreter: WebOp ~> Task): WebOps[λ[(α[_], β) ⇒ α[β]], Future] =
-      new WebOps[λ[(α[_], β) ⇒ α[β]], Future](interpreter andThen new (Task ~> Future) {
+    def future(interpreter: WebOp ~> Task): FutureWebOps =
+      new FutureWebOps(interpreter andThen new (Task ~> Future) {
         def apply[A](task: Task[A]): Future[A] = task.unsafeRunAsyncFuture()
       })
 
@@ -176,8 +180,7 @@ package object web {
       })
 
     /** The WebOps API for returning the raw ADT */
-    def raw: WebOps[λ[(α[_], β) ⇒ α[β]], WebOp] =
-      new WebOps[λ[(α[_], β) ⇒ α[β]], WebOp](~>.id)
+    def raw: RawWebOps = new RawWebOps(~>.id)
 
   }
 
