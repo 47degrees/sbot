@@ -23,11 +23,6 @@ import cats.free.Inject
 import fs2.Strategy
 import fs2.util.Async
 
-import org.scalaexercises.evaluator.free.algebra.EvaluatorOp
-import org.scalaexercises.evaluator.free.algebra.EvaluatorOps
-
-/*
-
 object EvalApi extends EvalApiTypes {
 
   import fs2.Task
@@ -123,8 +118,6 @@ sealed trait EvalApiTypes {
 
 import EvalApi._
 
-*/
-
 object BotApi {
 
   class BotOps[F[_]](implicit I: Inject[BotOp, F]) {
@@ -168,7 +161,7 @@ object BotApi {
 
   }
 
-  type Bot2[A] = EvaluatorOp[A]
+  type Bot2[A] = EvalOp[A]
   type Bot1[A] = Coproduct[RtmOp, Bot2, A]
   type Bot0[A] = Coproduct[BotOp, Bot1, A]
   type Bot[A] = Coproduct[WebOp, Bot0, A]
@@ -181,7 +174,7 @@ case class BotApi() {
   val rtm = RtmOps.freeIn[Bot]
   val web = WebOps.freeIn[Bot]
   val bot = BotOps.freeIn[Bot]
-  val eval = new EvaluatorOps[Bot]
+  val eval = EvalOps.freeIn[Bot]
   val debug = bot.debug
 
 }
