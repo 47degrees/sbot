@@ -12,9 +12,7 @@ import scala.None
 import scala.collection.immutable.List
 import scala.collection.immutable.{ List ⇒ List_ }
 
-import cats.Monad
-import cats.TransLift
-import cats.arrow.{ NaturalTransformation ⇒ ~> }
+import cats._
 import cats.data.Kleisli
 import cats.free.Free
 import cats.free.Inject
@@ -22,9 +20,6 @@ import cats.syntax.option._
 
 import io.circe.Decoder
 import io.circe.generic.semiauto._
-
-import fs2.Task
-import scala.concurrent.Future
 
 package object web {
 
@@ -155,45 +150,22 @@ package object web {
 
   }
 
-  type TaskWebOps = WebOps[λ[(α[_], β) ⇒ α[β]], Task]
-  type FutureWebOps = WebOps[λ[(α[_], β) ⇒ α[β]], Future]
-  type RawWebOps = WebOps[λ[(α[_], β) ⇒ α[β]], WebOp]
-
   object WebOps {
 
-    /** The WebOps API operating in `fs2.Task` */
-    def task(interpreter: WebOp ~> Task): TaskWebOps = new TaskWebOps(interpreter)
-
-    /** The WebOps API operating in Scala's `Future` */
-    def future(interpreter: WebOp ~> Task): FutureWebOps =
-      new FutureWebOps(interpreter andThen new (Task ~> Future) {
-        def apply[A](task: Task[A]): Future[A] = task.unsafeRunAsyncFuture()
-      })
-
-    /** The WebOps API operating for the simple `Free` algebra */
-    def free: WebOps[Free, WebOp] = new WebOps[Free, WebOp](~>.id)
-
-    /** The WebOps API injected into a higher Free algebra */
-    def freeIn[F[_]: Inject[WebOp, ?[_]]]: WebOps[Free, F] =
-      new WebOps[Free, F](new (WebOp ~> F) {
-        def apply[A](op: WebOp[A]): F[A] = Inject[WebOp, F].inj(op)
-      })
-
-    /** The WebOps API for returning the raw ADT */
-    def raw: RawWebOps = new RawWebOps(~>.id)
-
+    /** The WebOps API injected into a free algebra */
+    def free[F[_]: Inject[WebOp, ?[_]]]: WebOps[Free[F, ?]] =
+      WebOps[Free[F, ?]](λ[WebOp ~> Free[F, ?]](Free.inject(_)))
   }
 
   /** The WebOps API */
-  class WebOps[MT[_[_], _], F[_]] private[web] (f: WebOp ~> F)(implicit ev: TransLift.AuxId[MT]) {
-    type IO[A] = MT[F, A]
-    private[this] def lift[A](op: WebOp[A]): IO[A] = ev.liftT(f(op))
+  case class WebOps[F[_]](eval: WebOp ~> F) {
+    import WebOp._
 
     object channels {
       def list(
         excludeArchived: Boolean = false
-      ): IO[List[data.Channel]] = lift(
-        WebOp.Channels.List(excludeArchived))
+      ): F[List[data.Channel]] = eval(
+        Channels.List(excludeArchived))
     }
 
     object chat {
@@ -202,8 +174,8 @@ package object web {
         text: String,
         linkNames: Boolean = true,
         asUser: Boolean = true
-      ): IO[WebOp.Chat.PostMessage.Resp] = lift(
-        WebOp.Chat.PostMessage(
+      ): F[WebOp.Chat.PostMessage.Resp] = eval(
+        Chat.PostMessage(
           channel, text.some, linkNames.some, asUser.some))
     }
 
@@ -212,8 +184,8 @@ package object web {
         simpleLatest: Option[Boolean] = None,
         noUnreads: Option[Boolean] = None,
         mpimAware: Option[Boolean] = None
-      ): IO[WebOp.RTM.Start.Resp] = lift(
-        WebOp.RTM.Start(simpleLatest, noUnreads, mpimAware))
+      ): F[WebOp.RTM.Start.Resp] = eval(
+        RTM.Start(simpleLatest, noUnreads, mpimAware))
     }
 
   }

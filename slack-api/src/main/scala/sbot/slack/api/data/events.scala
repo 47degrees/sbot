@@ -12,7 +12,7 @@ import io.circe.Decoder
 import io.circe.DecodingFailure
 import io.circe.generic.semiauto._
 
-import cats.syntax.xor._
+import cats.syntax.either._
 
 import data.{ Message ⇒ Message_ }
 
@@ -92,7 +92,7 @@ sealed trait EventDecoders { self: Event.type ⇒
   implicit val decodeRTM: Decoder[Event.RTM] = Decoder.instance(c ⇒
     c.downField("type").as[String].flatMap {
 
-      case "accounts_changed"        ⇒ AccountsChanged.right
+      case "accounts_changed"        ⇒ AccountsChanged.asRight
 
       case "bot_added"               ⇒ decodeBotAdded(c)
       case "bot_changed"             ⇒ decodeBotChanged(c)
@@ -107,7 +107,7 @@ sealed trait EventDecoders { self: Event.type ⇒
       case "channel_rename"          ⇒ decodeChannelRename(c)
       case "channel_unarchive"       ⇒ decodeChannelUnarchive(c)
 
-      case "hello"                   ⇒ Hello.right
+      case "hello"                   ⇒ Hello.asRight
       case "message"                 ⇒ decodeMessage(c)
       case "presence_change"         ⇒ decodePresenceChange(c)
       case "reaction_added"          ⇒ decodeReactionAdded(c)
@@ -115,7 +115,7 @@ sealed trait EventDecoders { self: Event.type ⇒
       case "user_typing"             ⇒ decodeUserTyping(c)
 
       case other ⇒ DecodingFailure(
-        s"Unknown/handled type $other", c.history).left
+        s"Unknown/handled type $other", c.history).asLeft
     }
   )
 
@@ -132,7 +132,7 @@ sealed trait EventDecoders { self: Event.type ⇒
       case "reaction_added"          ⇒ decodeReactionAdded(c)
 
       case other ⇒ DecodingFailure(
-        s"Unknown/handled type $other", c.history).left
+        s"Unknown/handled type $other", c.history).asLeft
     }
   )
 

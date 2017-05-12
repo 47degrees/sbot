@@ -8,21 +8,16 @@ package sbot.ebot
 import sbot.common.minidef._
 
 import scala.Some
-import scala.collection.immutable.List
 import scala.concurrent.duration._
-import scala.sys
 
-import sbot.common.config.semiauto._
 import sbot.common.http._
 import sbot.slack.api.rtm._
 import sbot.slack.api.web._
 
 import cats.~>
-import cats.syntax.option._
 
-import knobs._
-import java.io.File
-import java.nio.file.Paths
+import classy.config._
+import classy.generic.auto._
 
 import fs2.Task
 import fs2.Strategy
@@ -46,44 +41,14 @@ object SlackClientMain {
 
   object Config {
     case class Http(entityTimeout: FiniteDuration)
-    private implicit val decodeHttp = deriveKnobsDecoder[Http]
     case class Slack(token: String)
-    private implicit val decodeSlack = deriveKnobsDecoder[Slack]
     case class Eval(token: String, uri: String)
-    private implicit val decodeEval = deriveKnobsDecoder[Eval]
-    val decodeConfig = deriveKnobsDecoder[Config]
   }
 
-  def main(args: scala.Array[String]) {
-    import scalaz.concurrent.{ Task ⇒ ZTask }
-
-    val defaults = ClassPathResource("sbot-defaults.cfg")
-    val envResource: Resource[Unit] = new Resource[Unit] {
-      def resolve(r: Unit, child: Path): Unit = r
-      def load(path: Worth[Unit]): ZTask[List[Directive]] =
-        ZTask.now(
-          sys.env.get("EVALUATOR_TOKEN").map(
-            token ⇒ Bind("evaluator.token", CfgText(token))).toList :::
-            sys.env.get("SLACK_TOKEN").map(
-              token ⇒ Bind("slack.token", CfgText(token))).toList)
-    }
-
-    val sources = List(
-      SysPropsResource(Prefix("sbot")).some,
-      FileResource(new File("sbot.cfg")).some,
-      sys.props.get("user.home").map(home ⇒
-        FileResource(Paths.get(home, ".sbot", "sbot.cfg").toFile)),
-      Resource.box(())(envResource).some)
-
-    knobs
-      .loadImmutable(
-        sources.flatten.map(source ⇒ Optional(source or defaults)))
-      .map(Config.decodeConfig)
-      .run.fold(
-        e ⇒ System.err.println(s"Error! $e"),
-        botMain)
-
-  }
+  def main(args: scala.Array[String]): Unit =
+    ConfigDecoder[Config].load().fold(
+      e ⇒ System.err.println(s"Config Error:\n${e.toPrettyString}"),
+      botMain)
 
   def botMain(config: Config): Unit = {
     import BotApi._
@@ -96,7 +61,7 @@ object SlackClientMain {
     val evalBot: Task[Unit] = for {
 
       // ask Slack for a web socket address
-      start ← WebOps.task(webInterpreter).rtm.start()
+      start ← WebOps(webInterpreter).rtm.start()
 
       // populate our "memory" with information from the start response
       memory = Memory.from(start)

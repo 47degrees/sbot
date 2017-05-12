@@ -11,7 +11,6 @@ import sbot.common.minidef._
 import scala.Option
 
 import io.circe.Decoder
-import io.circe.generic.semiauto._
 
 case class Channel(
   id: ChannelId,

@@ -36,7 +36,7 @@ object EvalApi extends EvalApiTypes {
   }
 
   object EvalOps {
-    def freeIn[F[_]](implicit I: Inject[EvalOp, F]): EvalOps[F] = new EvalOps[F]
+    def free[F[_]](implicit I: Inject[EvalOp, F]): EvalOps[F] = new EvalOps[F]
   }
 
   sealed trait EvalOp[A]
@@ -134,7 +134,7 @@ object BotApi {
   }
 
   object BotOps {
-    def freeIn[F[_]](implicit I: Inject[BotOp, F]): BotOps[F] = new BotOps[F]
+    def free[F[_]](implicit I: Inject[BotOp, F]): BotOps[F] = new BotOps[F]
   }
 
   sealed trait BotOp[A]
@@ -171,10 +171,10 @@ object BotApi {
 case class BotApi() {
   import BotApi._
 
-  val rtm = RtmOps.freeIn[Bot]
-  val web = WebOps.freeIn[Bot]
-  val bot = BotOps.freeIn[Bot]
-  val eval = EvalOps.freeIn[Bot]
+  val rtm = RtmOps.free[Bot]
+  val web = WebOps.free[Bot]
+  val bot = BotOps.free[Bot]
+  val eval = EvalOps.free[Bot]
   val debug = bot.debug
 
 }
