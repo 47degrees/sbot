@@ -6,41 +6,38 @@ lazy val root = (project in file(".")).aggregate(
   `eval-bot`
 )
 
-lazy val akkaVersion       = "2.4.8"
-lazy val catsVersion       = "0.6.1"
-lazy val circeVersion      = "0.5.0-M2"
-lazy val scalacheckVersion = "1.13.2"
-
 lazy val common = (project in file("common"))
   .settings(name := "common")
   .settings(resolvers += Resolver.bintrayRepo("oncue", "releases"))
-  .settings(libraryDependencies ++=
-    // eventually this won't be a catch-all
-    Seq(
-      "org.typelevel"     %% "cats-core"              % catsVersion,
-      "org.typelevel"     %% "cats-free"              % catsVersion,
-      "io.circe"          %% "circe-core"             % circeVersion,
-      "io.circe"          %% "circe-generic"          % circeVersion,
-      "io.circe"          %% "circe-parser"           % circeVersion,
-      "oncue.knobs"       %% "core"                   % "3.8.107",
-      "com.chuusai"       %% "shapeless"              % "2.3.1",
-      "com.typesafe.akka" %% "akka-http-core"         % akkaVersion,
-      "com.typesafe.akka" %% "akka-http-experimental" % akkaVersion,
-      "co.fs2"            %% "fs2-core"               % "0.9.0-M6",
-      "co.fs2"            %% "fs2-cats"               % "0.1.0-M6"
-    ) ++ Seq(
-      "org.scalacheck"    %% "scalacheck"             % scalacheckVersion
-    ).map(_ % "test") ++ Seq(
-      "org.slf4j"          % "slf4j-simple"           % "1.7.21"
-    ).map(_ % "runtime")
-  )
+  .settings(libraryDependencies ++= Seq(
+    "com.typesafe.akka" %% "akka-http"              % "10.0.6",
+    "com.typesafe.akka" %% "akka-http-core"         % "10.0.6",
+    "io.circe"          %% "circe-core"             % "0.8.0",
+    "io.circe"          %% "circe-parser"           % "0.8.0",
+    "co.fs2"            %% "fs2-core"               % "0.9.5"))
 
 lazy val `slack-api` = (project in file("slack-api"))
   .settings(name := "slack-api")
   .dependsOn(common)
+  .settings(libraryDependencies ++= Seq(
+    "org.typelevel"     %% "cats-core"              % "0.9.0",
+    "org.typelevel"     %% "cats-free"              % "0.9.0",
+    "co.fs2"            %% "fs2-core"               % "0.9.5",
+    "co.fs2"            %% "fs2-cats"               % "0.3.0",
+    "io.circe"          %% "circe-core"             % "0.8.0",
+    "io.circe"          %% "circe-generic"          % "0.8.0",
+    "io.circe"          %% "circe-parser"           % "0.8.0"))
 
 lazy val `eval-bot` = (project in file("eval-bot"))
   .settings(name := "eval-bot")
   .dependsOn(common)
   .dependsOn(`slack-api`)
   .enablePlugins(JavaAppPackaging)
+  .settings(libraryDependencies ++=
+    Seq(
+      "com.47deg"         %% "classy-core"            % "0.4.0",
+      "com.47deg"         %% "classy-config-typesafe" % "0.4.0",
+      "com.47deg"         %% "classy-generic"         % "0.4.0"
+    ) ++ Seq(
+      "org.slf4j"          % "slf4j-simple"           % "1.7.21"
+    ).map(_ % "runtime"))

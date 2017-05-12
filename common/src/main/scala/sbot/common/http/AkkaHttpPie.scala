@@ -14,8 +14,6 @@ import io.circe.jawn
 
 import fs2._
 
-import cats.data.Xor
-
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.HttpExt
@@ -32,6 +30,7 @@ import scala.collection.immutable.List
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.util.Right
 
 case class AkkaHttpPie(
     http: HttpExt,
@@ -78,8 +77,7 @@ case class AkkaHttpPie(
       resp ⇒ baseUnmarshaller
         .mapWithCharset((data, charset) ⇒ {
           val dataString = data.decodeString(charset.nioCharset.name)
-          jawn.decode(dataString)
-            .valueOr(throw _)
+          jawn.decode(dataString).fold(throw _, v ⇒ v)
         })
         .apply(resp.entity))
 
@@ -92,7 +90,7 @@ case class AkkaHttpPie(
     val akkaInputSink = Sink.queue[I]()
     val akkaInput = Flow[Message]
       .collect { case TextMessage.Strict(msg) ⇒ jawn.decode(msg) }
-      .collect { case Xor.Right(value) ⇒ value }
+      .collect { case Right(value) ⇒ value }
       .toMat(akkaInputSink)(Keep.right)
 
     val akkaOutput = Source.queue[Message](100, OverflowStrategy.backpressure)

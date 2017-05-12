@@ -11,12 +11,10 @@ import sbot.common.http.HttpPie
 import data.Event
 import web.WebOp
 
-import cats.Monoid
-import cats.TransLift
-import cats.arrow.{ NaturalTransformation ⇒ ~> }
+import cats._
 import cats.free.Free
 import cats.free.Inject
-import cats.kernel.std.unit._
+import cats.kernel.instances.unit._
 
 import fs2.Task
 import fs2.Sink
@@ -81,25 +79,15 @@ package object rtm {
 
   object RtmOps {
 
-    def free: RtmOps[Free, RtmOp] = new RtmOps[Free, RtmOp](~>.id)
-
-    def freeIn[F[_]: Inject[RtmOp, ?[_]]]: RtmOps[Free, F] =
-      new RtmOps[Free, F](new (RtmOp ~> F) {
-        def apply[A](op: RtmOp[A]): F[A] = Inject[RtmOp, F].inj(op)
-      })
-
-    def raw: RtmOps[λ[(α[_], β) ⇒ α[β]], RtmOp] =
-      new RtmOps[λ[(α[_], β) ⇒ α[β]], RtmOp](~>.id)
+    def free[F[_]: Inject[RtmOp, ?[_]]]: RtmOps[Free[F, ?]] =
+      RtmOps[Free[F, ?]](λ[RtmOp ~> Free[F, ?]](Free.inject(_)))
 
   }
 
-  class RtmOps[MT[_[_], _], F[_]] private[rtm] (f: RtmOp ~> F)(implicit ev: TransLift.AuxId[MT]) {
-    type IO[A] = MT[F, A]
-    private[this] def lift[A](op: RtmOp[A]): IO[A] = ev.liftT(f(op))
-
+  case class RtmOps[F[_]](eval: RtmOp ~> F) {
     def emitTyping(
       channel: data.ChannelId
-    ): IO[Unit] = lift(RtmOp.Typing(channel))
+    ): F[Unit] = eval(RtmOp.Typing(channel))
   }
 
 }

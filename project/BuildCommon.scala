@@ -24,7 +24,7 @@ object BuildCommon extends AutoPlugin {
     AutomateHeaderPlugin.projectSettings
 
   private[this] def baseSettings = Seq(
-    scalaVersion := "2.11.8",
+    scalaVersion := "2.12.2",
 
     organization := "com.47deg",
 
@@ -60,13 +60,7 @@ object BuildCommon extends AutoPlugin {
     libraryDependencies ++= Seq(
       // kind projector
       compilerPlugin(
-        "org.spire-math" %% "kind-projector" % "0.8.0" cross CrossVersion.binary),
-      // SI 2712 Fix
-      "com.milessabin" % "si2712fix-library" % "1.2.0" cross CrossVersion.full,
-      // simulacrum
-      "com.github.mpilquist" %% "simulacrum" % "0.8.0",
-      // machinist
-      "org.typelevel" %% "machinist" % "0.4.1"
+        "org.spire-math" %% "kind-projector" % "0.9.3" cross CrossVersion.binary)
     )
   )
 
