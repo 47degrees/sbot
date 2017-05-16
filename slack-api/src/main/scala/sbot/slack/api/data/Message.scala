@@ -11,39 +11,42 @@ import sbot.common.minidef._
 import io.circe.Decoder
 import io.circe.generic.semiauto._
 
-sealed trait Message[+S <: Supports] {
+sealed trait Message {
   def ts: TS
   def user: UserId
-  def channel: ChannelId
   def text: String
 }
 
 object Message extends MessageDecoders {
 
-  type RTM = Message[Supports.RTM]
-  type EventsAPI = Message[Supports.EventsAPI]
-  type Web = Message[Supports.Web]
-  type Any = Message[_]
+  trait WithChannel { self: Message ⇒
+    def channel: ChannelId
+  }
 
-  type All = Message[Supports.RTM with Supports.EventsAPI with Supports.Web]
+  type RTM = DefaultWithChannel
+  type EventsAPI = Default
+  type Web = Default
 
   case class Default(
     ts: TS,
     user: UserId,
+    text: String
+  ) extends Message
+
+  case class DefaultWithChannel(
+    ts: TS,
+    user: UserId,
     channel: ChannelId,
     text: String
-  ) extends All
+  ) extends Message with WithChannel
 
 }
 
 sealed trait MessageDecoders { self: Message.type ⇒
 
-  private val decodeDefault: Decoder[Default] =
+  implicit val decodeDefault: Decoder[Default] =
     deriveDecoder[Default]
 
-  implicit val decodeRTM: Decoder[Message.RTM] =
-    decodeDefault.map(m ⇒ m: Message.RTM)
-
-  implicit val decodeWeb: Decoder[Message.Web] =
-    decodeDefault.map(m ⇒ m: Message.Web)
+  implicit val decodeDefaultWithChannel: Decoder[DefaultWithChannel] =
+    deriveDecoder[DefaultWithChannel]
 }

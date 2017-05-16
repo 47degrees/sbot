@@ -6,7 +6,9 @@
 package sbot.slack.api
 package data
 
-sealed trait Supports
+sealed trait Supports {
+  type RTMOnly[A]
+}
 object Supports {
   sealed trait RTM extends Supports
   sealed trait EventsAPI extends Supports

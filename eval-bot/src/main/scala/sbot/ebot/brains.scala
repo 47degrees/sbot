@@ -14,7 +14,6 @@ import scala.None
 import scala.collection.immutable.List
 import scala.Predef.refArrayOps
 import scala.Predef.augmentString
-import sbot.slack.api.data
 
 import cats.syntax.option._
 
@@ -71,7 +70,7 @@ case class Logic(
   /** Think about a "Command" sequence */
   private[this] def thinkCommand(
     memory: Memory,
-    message: Message.Any,
+    message: Message.RTM,
     command: List[String]
   ): Option[BotApi.IO[_]] =
     command match {
